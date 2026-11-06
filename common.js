@@ -2,6 +2,7 @@
 (() => {
   const DEF = {
     fit: 'cover',
+    show: { on: false, mode: 'timer', sec: 30, random: false, fade: 1.2 },
     clock: { on: true, h24: true, sec: false, date: true, font: 'sans', weight: 200, size: 18,
              c1: '#ffffff', c2: '#9ec5ff', grad: false, glow: true, x: 50, y: 26 },
     search: { on: true, engine: 'brave', x: 50, y: 46, w: 84, bg: '#000000', op: 40,

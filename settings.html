@@ -63,7 +63,13 @@
   const engOpts = Object.fromEntries(Object.entries(ENG).map(([k, v]) => [k, v[0]]));
   // [パス, 種類, ラベル, 追加情報]
   const SCHEMA = [
-    { t: '背景', f: [['fit', 'sel', '表示方法', { cover: '画面を埋める', contain: '全体を表示' }]] },
+    { t: '背景', f: [
+      ['fit', 'sel', '表示方法', { cover: '画面を埋める', contain: '全体を表示' }],
+      ['show.on', 'chk', 'スライドショー'],
+      ['show.mode', 'sel', '切り替え', { timer: '一定時間ごと', open: '開くたびに1枚進む' }],
+      ['show.sec', 'rng', '間隔(秒)', [5, 300, 5]],
+      ['show.random', 'chk', 'ランダム順'],
+      ['show.fade', 'rng', 'フェード(秒)', [0, 3, 0.2]] ] },
     { t: '時計', on: 'clock.on', f: [
       ['clock.h24', 'chk', '24時間表示'], ['clock.sec', 'chk', '秒を表示'], ['clock.date', 'chk', '日付を表示'],
       ['clock.font', 'sel', 'フォント', { sans: 'ゴシック', round: '丸ゴシック', serif: '明朝', mono: '等幅' }],
@@ -164,7 +170,7 @@
   async function renderList() {
     const list = $('#list'); if (!list) return;
     urls.forEach(URL.revokeObjectURL); urls = [];
-    const all = await getAll();
+    const all = (await getAll()).sort((a, b) => (a.t || 0) - (b.t || 0));
     const act = (all.find(x => x.id === localStorage.active) || all[0] || {}).id;
     list.innerHTML = '';
     all.forEach(m => {
@@ -184,11 +190,11 @@
   const bgChanged = () => pv.contentWindow && pv.contentWindow.postMessage({ type: 'bg' }, location.origin);
 
   async function addFiles(files) {
-    let last;
+    let last, n = 0;
     for (const f of files) {
       if (!/^(image|video)\//.test(f.type)) continue;
       last = crypto.randomUUID();
-      await put({ id: last, name: f.name, type: f.type, blob: f });
+      await put({ id: last, name: f.name, type: f.type, blob: f, t: Date.now() + n++ });
     }
     if (!last) return;
     localStorage.active = last;
