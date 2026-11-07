@@ -43,6 +43,11 @@
   const save = c => { localStorage.cfg = JSON.stringify(c); };
   const fixUrl = u => { u = String(u).trim(); return /^https?:\/\//i.test(u) ? u : 'https://' + u; };
 
+  // ---------- 背景ごとの専用設定(小さいのでlocalStorageに { 背景id: 設定 } で保存) ----------
+  const profs = () => { try { return JSON.parse(localStorage.profs || '{}'); } catch (e) { return {}; } };
+  const saveProfs = m => { localStorage.profs = JSON.stringify(m); };
+  const eff = (c, id) => { const p = profs()[id]; return p ? merge(structuredClone(c), p) : c; };
+
   // ---------- IndexedDB(背景メディア) ----------
   const open = () => new Promise((res, rej) => {
     const r = indexedDB.open('startpage', 1);
@@ -61,7 +66,7 @@
   };
 
   window.SP = {
-    DEF, ENG, FONTS, merge, load, save, fixUrl,
+    DEF, ENG, FONTS, merge, load, save, fixUrl, profs, saveProfs, eff,
     getAll: () => tx('readonly', s => s.getAll()),
     put: o => tx('readwrite', s => s.put(o)),
     del: id => tx('readwrite', s => s.delete(id))

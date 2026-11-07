@@ -1,5 +1,5 @@
 // ファイルを更新したら VERSION を変えて push する(古いキャッシュは自動で消える)
-const VERSION = 'v4';
+const VERSION = 'v5';
 const CACHE = 'startpage-' + VERSION;
 const ASSETS = ['./', './index.html', './settings.html', './common.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 

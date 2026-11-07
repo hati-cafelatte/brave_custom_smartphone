@@ -55,7 +55,7 @@
 <script src="common.js"></script>
 <script>
 (() => {
-  const { DEF, ENG, load, save, getAll, put, del } = SP;
+  const { DEF, ENG, load, save, getAll, put, del, profs, saveProfs } = SP;
   const $ = s => document.querySelector(s);
   const ctl = $('#ctl'), pv = $('#pv');
   let cfg = load();
@@ -90,8 +90,27 @@
       ['sc.x', 'rng', '横位置 %', [0, 100, 1]], ['sc.y', 'rng', '縦位置 %', [0, 100, 1]] ] }
   ];
 
-  const get = p => p.split('.').reduce((o, k) => o[k], cfg);
-  const set = (p, v) => { const a = p.split('.'), l = a.pop(); a.reduce((o, k) => o[k], cfg)[l] = v; };
+  // 編集対象: 'global'=共通設定 / 'item'=選択中の背景専用(prof)
+  let mode = 'global', tid = null, prof = null;
+  const PROFKEYS = ['fit', 'clock', 'search', 'sc'];
+  const isGlob = p => p.startsWith('show.');           // スライドショー設定は常に共通
+  const root = p => (mode === 'item' && !isGlob(p)) ? prof : cfg;
+  const get = p => p.split('.').reduce((o, k) => o[k], root(p));
+  const set = (p, v) => { const a = p.split('.'), l = a.pop(); a.reduce((o, k) => o[k], root(p))[l] = v; };
+  const snapshot = c => { const o = {}; PROFKEYS.forEach(k => o[k] = structuredClone(c[k])); delete o.sc.items; return o; };  // ショートカット内容は共通
+  const effCfg = () => mode === 'item' ? SP.merge(structuredClone(cfg), structuredClone(prof)) : cfg;
+  const sortMedia = a => a.sort((x, y) => (x.t || 0) - (y.t || 0));
+  const activeId = async () => { const all = sortMedia(await getAll()); return (all.find(x => x.id === localStorage.active) || all[0] || {}).id; };
+  async function setItemMode() {
+    const id = await activeId();
+    if (!id) { alert('先に背景の画像・動画を追加してください'); return; }
+    mode = 'item'; tid = id; prof = profs()[id] || snapshot(cfg);
+    build(); post();
+  }
+  const targetCard = () => `<section class="card"><h3>編集対象</h3>
+    <div class="row"><button id="mG" class="${mode === 'global' ? 'p' : ''}">共通設定</button><button id="mI" class="${mode === 'item' ? 'p' : ''}">選択中の背景専用</button></div>
+    <small>${mode === 'global' ? '全ての背景で使う設定です。専用設定がある背景では、そちらが優先されます。' : 'この背景を表示するときだけ使う設定です。ショートカットの内容とスライドショーは共通です。'}</small>
+    ${mode === 'item' && profs()[tid] ? '<div class="row"><button id="mDel">専用設定を削除(共通に戻す)</button></div>' : ''}</section>`;
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function field([p, t, l, x]) {
@@ -105,7 +124,7 @@
   }
 
   function build() {
-    ctl.innerHTML = SCHEMA.map(s => `<section class="card">
+    ctl.innerHTML = targetCard() + SCHEMA.map(s => `<section class="card">
       <h3>${s.on ? `<input type="checkbox" data-p="${s.on}">` : ''}${s.t}</h3>
       <div class="fields">${s.f.map(field).join('')}${s.items ? '<div id="items"></div><button id="addsc">＋ 追加</button>' : ''}</div></section>`).join('')
     + `<section class="card"><h3>背景の画像・動画</h3>
@@ -126,11 +145,23 @@
   }
 
   let t = 0;
+  function post() {
+    clearTimeout(t);
+    t = setTimeout(() => pv.contentWindow && pv.contentWindow.postMessage({ type: 'cfg', cfg: effCfg() }, location.origin), 40);
+  }
   function push() {
     save(cfg);
-    clearTimeout(t);
-    t = setTimeout(() => pv.contentWindow && pv.contentWindow.postMessage({ type: 'cfg', cfg }, location.origin), 40);
+    if (mode === 'item') {
+      const m = profs(), first = !m[tid];
+      m[tid] = prof; saveProfs(m);
+      if (first) {   // 初回の変更時だけ「専用」バッジと削除ボタンを出す
+        renderList();
+        ctl.querySelector('.card').insertAdjacentHTML('beforeend', '<div class="row"><button id="mDel">専用設定を削除(共通に戻す)</button></div>');
+      }
+    }
+    post();
   }
+  pv.addEventListener('load', post);
 
   // 入力はイベント委譲で1か所だけ
   ctl.addEventListener('input', e => {
@@ -147,7 +178,10 @@
   });
   ctl.addEventListener('click', e => {
     const b = e.target;
-    if (b.id === 'addsc') { cfg.sc.items.push({ name: '', url: '' }); renderItems(); push(); }
+    if (b.id === 'mG') { mode = 'global'; build(); post(); }
+    else if (b.id === 'mI') setItemMode();
+    else if (b.id === 'mDel') { const pm = profs(); delete pm[tid]; saveProfs(pm); mode = 'global'; build(); post(); }
+    else if (b.id === 'addsc') { cfg.sc.items.push({ name: '', url: '' }); renderItems(); push(); }
     else if (b.dataset.del !== undefined) { cfg.sc.items.splice(+b.dataset.del, 1); renderItems(); push(); }
     else if (b.id === 'exp') { const j = $('#json'); j.value = JSON.stringify(cfg); j.select(); navigator.clipboard && navigator.clipboard.writeText(j.value).catch(() => {}); }
     else if (b.id === 'imp') {
@@ -175,13 +209,20 @@
     list.innerHTML = '';
     all.forEach(m => {
       const u = URL.createObjectURL(m.blob); urls.push(u);
-      const v = m.type.startsWith('video/');
+      const v = m.type.startsWith('video/'), hasP = !!profs()[m.id];
       const d = document.createElement('div');
       d.className = 'item' + (m.id === act ? ' active' : '');
-      d.innerHTML = (v ? `<video src="${u}#t=0.1" muted playsinline preload="metadata"></video><span class="tag">動画</span>` : `<img src="${u}">`) + '<span class="x">✕</span>';
+      d.innerHTML = (v ? `<video src="${u}#t=0.1" muted playsinline preload="metadata"></video><span class="tag">動画</span>` : `<img src="${u}">`) + (hasP ? '<span class="tag" style="left:auto;right:3px;bottom:3px;background:#3b6cff">専用</span>' : '') + '<span class="x">✕</span>';
       d.onclick = async e => {
-        if (e.target.classList.contains('x')) { if (!confirm('削除しますか?')) return; await del(m.id); }
-        else localStorage.active = m.id;
+        if (e.target.classList.contains('x')) {
+          if (!confirm('削除しますか?')) return;
+          await del(m.id);
+          const pm = profs(); delete pm[m.id]; saveProfs(pm);
+          if (mode === 'item') { mode = 'global'; build(); post(); }
+        } else {
+          localStorage.active = m.id;
+          if (mode === 'item') { tid = m.id; prof = profs()[tid] || snapshot(cfg); build(); post(); }
+        }
         renderList(); bgChanged();
       };
       list.append(d);

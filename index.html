@@ -36,11 +36,11 @@
 <script src="common.js"></script>
 <script>
 (() => {
-  const { ENG, FONTS, getAll, load, fixUrl } = SP;
+  const { ENG, FONTS, getAll, load, fixUrl, profs, eff } = SP;
   const $ = s => document.querySelector(s);
   const stage = $('#stage'), ui = $('#ui');
   const pv = /[?&]preview/.test(location.search);   // 設定画面のプレビュー用
-  let cfg = load(), bgURL = null, timer = 0;
+  let cfg = load(), base = cfg, uiKey = '', bgURL = null, timer = 0;
 
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rgba = (h, a) => { const n = parseInt(h.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
@@ -75,6 +75,11 @@
   async function show(i, fade) {
     cur = i;
     const el = await layer(media[i]);
+    // この背景に専用設定があれば、表示と同時にUIを切り替える
+    if (!pv) {
+      const id = media[i].id, key = profs()[id] ? id : '';
+      if (key !== uiKey) { uiKey = key; cfg = key ? eff(base, id) : base; renderUI(); }
+    }
     const old = [...stage.children];
     el.style.opacity = fade ? 0 : 1;
     stage.append(el);
@@ -169,7 +174,7 @@
   });
 
   // 設定ページから「戻る」で復帰したとき、1回だけ読み直す
-  addEventListener('pageshow', e => { if (e.persisted) { cfg = load(); renderUI(); applyBg(true); } });
+  addEventListener('pageshow', e => { if (e.persisted) { base = cfg = load(); uiKey = ''; renderUI(); applyBg(true); } });
 
   // プレビュー時のみ: 設定ページからのメッセージで更新(常時監視ではなくイベント駆動)
   if (pv) addEventListener('message', e => {
