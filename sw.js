@@ -1,10 +1,16 @@
 // ファイルを更新したら VERSION を変えて push する(古いキャッシュは自動で消える)
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE = 'startpage-' + VERSION;
 const ASSETS = ['./', './index.html', './settings.html', './common.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache:'reload' でブラウザのHTTPキャッシュを無視し、常に最新ファイルを取り込む
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => Promise.all(ASSETS.map(u =>
+        fetch(new Request(u, { cache: 'reload' })).then(r => { if (!r.ok) throw new Error(u); return c.put(u, r); }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {

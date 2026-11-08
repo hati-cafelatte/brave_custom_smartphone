@@ -63,8 +63,7 @@
         el = document.createElement('video');
         el.muted = true; el.loop = true; el.playsInline = true; el.setAttribute('playsinline', '');
         el.preload = 'auto'; el.src = pv ? u + '#t=0.1' : u;
-        el.addEventListener('loadeddata', () => res(el), { once: true });
-        setTimeout(() => res(el), 4000);
+        res(el);   // 動画は待たずに返す(読み込みはDOMに入れてから)
       } else {
         el = new Image(); el.src = u;
         (el.decode ? el.decode() : Promise.resolve()).catch(() => {}).then(() => res(el));
@@ -72,18 +71,23 @@
       el._u = u;
     });
   }
+  // この背景に専用設定があればUIを切り替える(メディアの読み込みを待たない)
+  function applyProfile(i, force) {
+    if (pv) return;   // プレビューは設定ページから届く設定をそのまま使う
+    const id = media[i].id, key = profs()[id] ? id : '';
+    if (force || key !== uiKey) { uiKey = key; cfg = key ? eff(base, id) : base; renderUI(); }
+  }
   async function show(i, fade) {
     cur = i;
+    applyProfile(i);
     const el = await layer(media[i]);
-    // この背景に専用設定があれば、表示と同時にUIを切り替える
-    if (!pv) {
-      const id = media[i].id, key = profs()[id] ? id : '';
-      if (key !== uiKey) { uiKey = key; cfg = key ? eff(base, id) : base; renderUI(); }
-    }
     const old = [...stage.children];
+    const isV = el.tagName === 'VIDEO';
     el.style.opacity = fade ? 0 : 1;
     stage.append(el);
-    if (el.tagName === 'VIDEO' && !pv) el.play().catch(() => {});
+    if (isV && !pv) el.play().catch(() => {});
+    // 切り替え時の動画は、最初のコマが出るまで(最大2.5秒)旧背景を残してフェード
+    if (isV && fade) await new Promise(r => { el.addEventListener('loadeddata', r, { once: true }); setTimeout(r, 2500); });
     if (fade) { void el.offsetWidth; el.style.opacity = 1; }
     const drop = () => old.forEach(o => { if (o.pause) o.pause(); o.remove(); URL.revokeObjectURL(o._u); });
     fade ? setTimeout(drop, cfg.show.fade * 1000 + 100) : drop();
@@ -97,11 +101,12 @@
     clearTimeout(slideTimer);
     media = (await getAll()).sort((a, b) => (a.t || 0) - (b.t || 0));
     stage.style.setProperty('--fade', cfg.show.fade + 's');
-    if (!media.length) { stage.innerHTML = ''; return; }
+    if (!media.length) { stage.innerHTML = ''; if (!pv) { uiKey = ''; cfg = base; renderUI(); } return; }
     let i = media.findIndex(x => x.id === localStorage.active);
     if (i < 0) i = 0;
     cur = i;
     if (advance && slide() && cfg.show.mode === 'open') { i = pick(); localStorage.active = media[i].id; }
+    applyProfile(i, true);
     await show(i, false);
     schedule();
   }
@@ -174,7 +179,7 @@
   });
 
   // 設定ページから「戻る」で復帰したとき、1回だけ読み直す
-  addEventListener('pageshow', e => { if (e.persisted) { base = cfg = load(); uiKey = ''; renderUI(); applyBg(true); } });
+  addEventListener('pageshow', e => { if (e.persisted) { base = cfg = load(); uiKey = ''; applyBg(true); } });
 
   // プレビュー時のみ: 設定ページからのメッセージで更新(常時監視ではなくイベント駆動)
   if (pv) addEventListener('message', e => {
@@ -183,8 +188,8 @@
     if (e.data.type === 'bg') applyBg();
   });
 
-  renderUI();
-  applyBg(true);
+  if (pv) renderUI();
+  applyBg(true).catch(() => { if (!pv) renderUI(); });
   if ('serviceWorker' in navigator && !pv) navigator.serviceWorker.register('./sw.js').catch(() => {});
 })();
 </script>

@@ -66,7 +66,7 @@
   };
 
   window.SP = {
-    DEF, ENG, FONTS, merge, load, save, fixUrl, profs, saveProfs, eff,
+    BUILD: 'v6', DEF, ENG, FONTS, merge, load, save, fixUrl, profs, saveProfs, eff,
     getAll: () => tx('readonly', s => s.getAll()),
     put: o => tx('readwrite', s => s.put(o)),
     del: id => tx('readwrite', s => s.delete(id))

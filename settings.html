@@ -45,7 +45,7 @@
 </style>
 </head>
 <body>
-<div id="top"><a href="index.html">← 戻る</a><button id="reset">初期化</button></div>
+<div id="top"><a href="index.html">← 戻る</a><small id="build"></small><button id="reset">初期化</button></div>
 <div id="wrap">
   <div id="pvbox"><iframe id="pv" src="index.html?preview=1" title="プレビュー"></iframe></div>
   <main id="ctl"></main>
@@ -250,6 +250,7 @@
 
   $('#reset').onclick = () => { if (confirm('設定を初期化しますか?(背景は残ります)')) { cfg = structuredClone(DEF); push(); build(); } };
 
+  $('#build').textContent = 'build ' + SP.BUILD;
   build();
 })();
 </script>
